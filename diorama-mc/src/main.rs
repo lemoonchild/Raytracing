@@ -27,6 +27,9 @@ use material::Material;
 mod light;
 use light::Light; 
 
+
+const SKYBOX_COLOR: Color = Color::new(69, 142, 228);
+
 fn reflect(incident: &Vec3, normal: &Vec3) -> Vec3 {
     incident - 2.0 * incident.dot(normal) * normal
 }
@@ -51,7 +54,11 @@ fn cast_shadow(
     shadow_intensity
 }
 
-pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere], light: &Light) -> Color {
+pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere], light: &Light, depth: u32) -> Color {
+
+    if depth >= 3 {
+        return SKYBOX_COLOR;
+    }
 
     let mut intersect = Intersect::empty(); 
     let mut zbuffer = INFINITY; 
@@ -67,7 +74,7 @@ pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere], lig
     }
 
     if !intersect.is_intersecting {
-        return Color::new(4, 12, 36); 
+        return SKYBOX_COLOR; 
     }
 
     let light_dir = (light.position - intersect.point).normalize(); 
@@ -84,7 +91,16 @@ pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere], lig
     let specular_intensity = view_dir.dot(&reflect_dir).max(0.0).powf(intersect.material.specular); 
     let specular = light.color * intersect.material.albedo[1] * specular_intensity * light_intensity; 
 
-    diffuse + specular
+    let mut reflect_color = Color::black(); 
+    let mut reflectivity = intersect.material.reflectivity; 
+
+    if reflectivity > 0.0 {
+        let reflect_dir = reflect(&ray_direction, &intersect.normal).normalize(); 
+        let reflect_origin = intersect.point; 
+        reflect_color = cast_ray(&reflect_origin, &reflect_dir, objects, light, depth + 1)
+    }
+
+    (diffuse + specular) * (1.0 - reflectivity) + (reflect_color) * (reflectivity)
 }
 
 pub fn render(framebuffer: &mut Framebuffer, objects: &[Sphere], camera: &Camera, light: &Light) {
@@ -109,7 +125,7 @@ pub fn render(framebuffer: &mut Framebuffer, objects: &[Sphere], camera: &Camera
 
             let rotated_direction = camera.basis_change(&ray_direction); 
 
-            let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, light);
+            let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, light, 0);
 
             // Draw the pixel on screen with the returned color
             framebuffer.set_current_color(pixel_color.to_hex());
@@ -146,18 +162,20 @@ fn main() {
         Color::new(80, 0, 0),
         10.0,
         [0.9, 0.1],
+        0.0,
     ); 
 
     let ivory = Material::new(
         Color::new(100, 100, 100),
         50.0,
         [0.6, 0.3],
+        0.6,
     );
 
     let objects = [
         Sphere {
-            center: Vec3::new(0.0, 0.0, 3.5),
-            radius: 0.1, 
+            center: Vec3::new(0.0, 0.0, 2.0),
+            radius: 0.5, 
             material: ivory,
         },
         Sphere {
