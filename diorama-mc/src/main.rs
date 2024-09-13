@@ -13,7 +13,7 @@ mod sphere;
 use sphere::Sphere; 
 
 mod ray_intersect;
-use ray_intersect::{RayIntersect, Intersect, Material};
+use ray_intersect::{RayIntersect, Intersect};
 
 mod color;
 use color::Color; 
@@ -21,8 +21,37 @@ use color::Color;
 mod camera;
 use camera::Camera; 
 
+mod material;
+use material::Material; 
 
-pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere]) -> Color {
+mod light;
+use light::Light; 
+
+fn reflect(incident: &Vec3, normal: &Vec3) -> Vec3 {
+    incident - 2.0 * incident.dot(normal) * normal
+}
+
+fn cast_shadow(
+    intersect: &Intersect,
+    light: &Light,
+    objects: &[Sphere],
+) -> f32 {
+    let light_dir = (light.position - intersect.point).normalize();
+    let shadow_ray_origin = intersect.point;
+    let mut shadow_intensity = 0.0;
+
+    for object in objects {
+        let shadow_intersect = object.ray_intersect(&shadow_ray_origin, &light_dir);
+        if shadow_intersect.is_intersecting {
+            shadow_intensity = 0.7;
+            break;
+        }
+    }
+
+    shadow_intensity
+}
+
+pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere], light: &Light) -> Color {
 
     let mut intersect = Intersect::empty(); 
     let mut zbuffer = INFINITY; 
@@ -41,12 +70,24 @@ pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere]) -> 
         return Color::new(4, 12, 36); 
     }
 
-    let diffuse = intersect.material.diffuse; 
+    let light_dir = (light.position - intersect.point).normalize(); 
+    let view_dir = (ray_origin - intersect.point).normalize();
 
-    diffuse
+    let reflect_dir = reflect(&-light_dir, &intersect.normal).normalize();
+
+    let shadow_intensity = cast_shadow(&intersect, light, objects);
+    let light_intensity = light.intensity * (1.0 - shadow_intensity); 
+
+    let diffuse_intensity = intersect.normal.dot(&light_dir); 
+    let diffuse = intersect.material.diffuse * intersect.material.albedo[0] * diffuse_intensity * light_intensity; 
+
+    let specular_intensity = view_dir.dot(&reflect_dir).max(0.0).powf(intersect.material.specular); 
+    let specular = light.color * intersect.material.albedo[1] * specular_intensity * light_intensity; 
+
+    diffuse + specular
 }
 
-pub fn render(framebuffer: &mut Framebuffer, objects: &[Sphere], camera: &Camera) {
+pub fn render(framebuffer: &mut Framebuffer, objects: &[Sphere], camera: &Camera, light: &Light) {
     let width = framebuffer.width as f32;
     let height = framebuffer.height as f32;
     let aspect_ratio = width / height;
@@ -68,7 +109,7 @@ pub fn render(framebuffer: &mut Framebuffer, objects: &[Sphere], camera: &Camera
 
             let rotated_direction = camera.basis_change(&ray_direction); 
 
-            let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects);
+            let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, light);
 
             // Draw the pixel on screen with the returned color
             framebuffer.set_current_color(pixel_color.to_hex());
@@ -101,18 +142,22 @@ fn main() {
 
     framebuffer.set_background_color(0x333355);
 
-    let rubber = Material{
-        diffuse: Color::new(80, 0, 0),
-    }; 
+    let rubber = Material::new(
+        Color::new(80, 0, 0),
+        10.0,
+        [0.9, 0.1],
+    ); 
 
-    let ivory = Material {
-        diffuse: Color::new(100, 100, 100)
-    };
+    let ivory = Material::new(
+        Color::new(100, 100, 100),
+        50.0,
+        [0.6, 0.3],
+    );
 
     let objects = [
         Sphere {
-            center: Vec3::new(-0.2, 0.0, 2.0),
-            radius: 0.2, 
+            center: Vec3::new(0.0, 0.0, 3.5),
+            radius: 0.1, 
             material: ivory,
         },
         Sphere {
@@ -129,8 +174,13 @@ fn main() {
         Vec3::new(0.0, 1.0, 0.0),
     );
 
+    let light = Light::new(
+      Vec3::new(0.0, 0.0, 5.0),
+      Color::new(255, 255, 255),
+      1.0,
+    );
 
-    let rotation_speed = PI/20.0; 
+    let rotation_speed = PI/50.0; 
 
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
@@ -152,7 +202,7 @@ fn main() {
         }
 
         framebuffer.clear();
-        render(&mut framebuffer, &objects, &mut camera);
+        render(&mut framebuffer, &objects, &mut camera, &light);
 
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)

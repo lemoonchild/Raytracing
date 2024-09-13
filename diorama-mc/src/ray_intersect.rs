@@ -1,22 +1,21 @@
 use nalgebra_glm::Vec3;
-use crate::color::Color;
-
-#[derive(Debug, Clone, Copy)]
-pub struct Material {
-    pub diffuse: Color,
-}
+use crate::material::Material; 
 
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)]
 pub struct Intersect {
+    pub point: Vec3, 
+    pub normal: Vec3,
     pub distance: f32,
     pub is_intersecting: bool,
     pub material: Material,
 }
 
 impl Intersect {
-    pub fn new(distance: f32, material: Material) -> Self {
+    pub fn new(point: Vec3, normal: Vec3, distance: f32, material: Material) -> Self {
         Intersect {
+            point,
+            normal, 
             distance,
             is_intersecting: true,
             material,
@@ -25,11 +24,11 @@ impl Intersect {
 
     pub fn empty() -> Self {
         Intersect {
+            point: Vec3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 0.0),
             distance: 0.0,
             is_intersecting: false,
-            material: Material {
-                diffuse: Color::new(0, 0, 0),
-            },
+            material: Material::black(),
         }
     }
 }
