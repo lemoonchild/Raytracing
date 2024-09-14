@@ -8,6 +8,15 @@ pub struct Sphere {
     pub material: Material,
 }
 
+impl Sphere {
+    fn get_uv(&self, point: &Vec3) -> (f32, f32) {
+        let normalized = (point - self.center) / self.radius;
+        let u = 0.5 + (normalized.z.atan2(normalized.x) / (2.0 * std::f32::consts::PI));
+        let v = 0.5 - (normalized.y.asin() / std::f32::consts::PI);
+        (u, v)
+    }
+}
+
 impl RayIntersect for Sphere {
     fn ray_intersect(&self, ray_origin: &Vec3, ray_direction: &Vec3) -> Intersect {
         // Vector from the ray origin to the center of the sphere
@@ -30,8 +39,9 @@ impl RayIntersect for Sphere {
                 let point = ray_origin + ray_direction * t;
                 let normal = (point - self.center).normalize();
                 let distance = t;
-        
-                return Intersect::new(point, normal, distance, self.material);
+                let (u, v) = self.get_uv(&point);
+
+                return Intersect::new(point, normal, distance, self.material.clone(), u, v);
             }
         }
         

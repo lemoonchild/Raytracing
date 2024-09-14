@@ -27,6 +27,8 @@ use material::Material;
 mod light;
 use light::Light; 
 
+mod texture;
+
 const BIAS: f32 = 0.001;
 const SKYBOX_COLOR: Color = Color::new(69, 142, 228);
 
@@ -71,25 +73,25 @@ fn refract(incident: &Vec3, normal: &Vec3, eta_t: f32) -> Vec3 {
     }
 }
 
-fn cast_shadow(
-    intersect: &Intersect,
-    light: &Light,
-    objects: &[Sphere],
-) -> f32 {
+fn cast_shadow(intersect: &Intersect, light: &Light, objects: &[Sphere]) -> f32 {
     let light_dir = (light.position - intersect.point).normalize();
-    let shadow_ray_origin = intersect.point;
+    let light_distance = (light.position - intersect.point).magnitude();
+
+    let shadow_ray_origin = offset_point(intersect, &light_dir);
     let mut shadow_intensity = 0.0;
 
     for object in objects {
         let shadow_intersect = object.ray_intersect(&shadow_ray_origin, &light_dir);
-        if shadow_intersect.is_intersecting {
-            shadow_intensity = 0.7;
+        if shadow_intersect.is_intersecting && shadow_intersect.distance < light_distance {
+            let distance_ratio = shadow_intersect.distance / light_distance;
+            shadow_intensity = 1.0 - distance_ratio.powf(2.0).min(1.0);
             break;
         }
     }
 
     shadow_intensity
 }
+
 
 pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere], light: &Light, depth: u32) -> Color {
 
@@ -122,14 +124,18 @@ pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere], lig
     let shadow_intensity = cast_shadow(&intersect, light, objects);
     let light_intensity = light.intensity * (1.0 - shadow_intensity); 
 
-    let diffuse_intensity = intersect.normal.dot(&light_dir); 
-    let diffuse = intersect.material.diffuse * intersect.material.albedo[0] * diffuse_intensity * light_intensity; 
+    let diffuse_intensity = intersect.normal.dot(&light_dir).max(0.0).min(1.0); 
+    let diffuse_color = intersect
+    .material
+    .get_diffuse_color(intersect.u, intersect.v);
+    let diffuse =
+    diffuse_color * intersect.material.albedo[0] * diffuse_intensity * light_intensity;
 
     let specular_intensity = view_dir.dot(&reflect_dir).max(0.0).powf(intersect.material.specular); 
     let specular = light.color * intersect.material.albedo[1] * specular_intensity * light_intensity; 
 
     let mut reflect_color = Color::black(); 
-    let reflectivity = intersect.material.reflectivity; 
+    let reflectivity = intersect.material.albedo[2];
 
     if reflectivity > 0.0 {
         let reflect_dir = reflect(&ray_direction, &intersect.normal).normalize(); 
@@ -139,12 +145,16 @@ pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere], lig
 
     
     let mut refract_color = Color::black(); 
-    let transparency = intersect.material.transparency; 
+    let transparency = intersect.material.albedo[3];
 
     if transparency > 0.0 {
-        let refract_dir = refract(&ray_direction, &intersect.normal, intersect.material.refraction_index).normalize(); 
-        let refract_origin = offset_point(&intersect, &ray_direction);
-        refract_color = cast_ray(&refract_origin, &refract_dir, objects, light, depth + 1)
+        let refract_dir = refract(
+            &ray_direction,
+            &intersect.normal,
+            intersect.material.refractive_index,
+        );
+        let refract_origin = offset_point(&intersect, &refract_dir);
+        refract_color = cast_ray(&refract_origin, &refract_dir, objects, light, depth + 1);
     }
 
     (diffuse + specular) * (1.0 - reflectivity - transparency) + (reflect_color * reflectivity) + (refract_color * transparency)
@@ -205,32 +215,17 @@ fn main() {
 
     framebuffer.set_background_color(0x333355);
 
-    let rubber = Material::new(
-        Color::new(80, 0, 0),
-        10.0,
-        [0.9, 0.1],
-        0.0,
-        0.0,
-        0.0,
-    ); 
+    let rubber = Material::new_with_texture(1.0, [0.9, 0.1, 0.0, 0.0], 0.0);
 
-    let ivory = Material::new(
-        Color::new(100, 100, 100),
-        50.0,
-        [0.6, 0.3],
-        0.6,
-        0.0, 
-        0.0,
-    );
+    let ivory = Material::new(Color::new(100, 100, 80), 50.0, [0.6, 0.3, 0.6, 0.0], 0.0);
 
     let glass = Material::new(
         Color::new(255, 255, 255),
-        1450.0,
-        [0.0, 1.0],
-        0.4,
-        0.6, 
-        1.3,
+        1425.0,
+        [0.0, 10.0, 0.5, 0.5],
+        0.3,
     );
+
 
     let objects = [
         Sphere {
