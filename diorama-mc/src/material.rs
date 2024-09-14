@@ -6,6 +6,8 @@ pub struct Material {
     pub specular: f32, 
     pub albedo: [f32; 2],
     pub reflectivity: f32, 
+    pub transparency: f32, 
+    pub refraction_index: f32,
 }
 
 impl Material {
@@ -14,12 +16,17 @@ impl Material {
         specular: f32,
         albedo: [f32; 2],
         reflectivity: f32,
+        transparency: f32, 
+        refraction_index: f32,
+
     ) -> Self {
         Material {
             diffuse,
             specular,
             albedo,
-            reflectivity
+            reflectivity,
+            transparency, 
+            refraction_index,
         }
     }
 
@@ -29,6 +36,8 @@ impl Material {
             specular: 0.0,
             albedo: [0.0, 0.0],
             reflectivity: 0.0, 
+            transparency: 0.0, 
+            refraction_index: 0.0,
         }                            
     }                       
 }                

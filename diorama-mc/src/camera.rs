@@ -1,10 +1,11 @@
-use nalgebra_glm::Vec3; 
+use nalgebra_glm::{Vec3, rotate_vec3};
 use std::f32::consts::PI; 
 
 pub struct Camera {
     pub eye: Vec3,
     pub center: Vec3, 
     pub up: Vec3,
+    pub has_changed: bool, 
 }
 
 impl Camera {
@@ -13,6 +14,7 @@ impl Camera {
             eye, 
             center,
             up,
+            has_changed: true,
         }
     }
 
@@ -31,7 +33,7 @@ impl Camera {
 
     pub fn orbit(&mut self, delta_yaw: f32, delta_pitch: f32) {
         let radius_vector = self.eye - self.center;
-        let radius = radius_vector.magnitude();
+        let radius = radius_vector.magnitude(); 
         let current_yaw = radius_vector.z.atan2(radius_vector.x);
     
         let radius_xz = (radius_vector.x * radius_vector.x + radius_vector.z * radius_vector.z).sqrt();
@@ -47,8 +49,43 @@ impl Camera {
         );
     
         self.eye = new_eye;
+        self.has_changed = true;
     }
     
+    pub fn zoom(&mut self, delta: f32) {
+    let direction = (self.center - self.eye).normalize();
+    self.eye += direction * delta;
+    self.has_changed = true;
+    }
+
+    pub fn move_center(&mut self, direction: Vec3) {
+    let radius_vector = self.center - self.eye;
+    let radius = radius_vector.magnitude();
+
+    // Calculate rotation angles based on input
+    let angle_x = direction.x * 0.05; // Adjust this factor to control rotation speed
+    let angle_y = direction.y * 0.05;
+
+    // Rotate around Y-axis (for left-right movement)
+    let rotated = rotate_vec3(&radius_vector, angle_x, &Vec3::new(0.0, 1.0, 0.0));
+
+    // Rotate around the right vector (for up-down movement)
+    let right = rotated.cross(&self.up).normalize();
+    let final_rotated = rotate_vec3(&rotated, angle_y, &right);
+
+    // Ensure the length of the vector remains constant
+    self.center = self.eye + final_rotated.normalize() * radius;
+    self.has_changed = true;
+    }
+    
+    pub fn check_if_changed(&mut self) -> bool {
+    if self.has_changed {
+        self.has_changed = false;
+        true
+    } else {
+        false
+    }
+    }
 }
 
 

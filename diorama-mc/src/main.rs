@@ -264,26 +264,56 @@ fn main() {
     );
 
     let rotation_speed = PI/50.0; 
+    let movement_speed = 0.1;
+    let zoom_speed = 0.5;
 
     while window.is_open() {
+        
+        // listen to inputs
         if window.is_key_down(Key::Escape) {
             break;
         }
-
-        // camera orbit controls
+    
+        //  camera orbit controls
         if window.is_key_down(Key::Left) {
             camera.orbit(rotation_speed, 0.0);
         }
         if window.is_key_down(Key::Right) {
             camera.orbit(-rotation_speed, 0.0);
         }
-        if window.is_key_down(Key::Up) {
+        if window.is_key_down(Key::W) {
             camera.orbit(0.0, -rotation_speed);
         }
-        if window.is_key_down(Key::Down) {
+        if window.is_key_down(Key::S) {
             camera.orbit(0.0, rotation_speed);
         }
-
+    
+        // Camera movement controls
+        let mut movement = Vec3::new(0.0, 0.0, 0.0);
+        if window.is_key_down(Key::A) {
+            movement.x -= movement_speed;
+        }
+        if window.is_key_down(Key::D) {
+            movement.x += movement_speed;
+        }
+        if window.is_key_down(Key::Q) {
+            movement.y += movement_speed;
+        }
+        if window.is_key_down(Key::E) {
+            movement.y -= movement_speed;
+        }
+        if movement.magnitude() > 0.0 {
+            camera.move_center(movement);
+        }
+    
+        // Camera zoom controls
+        if window.is_key_down(Key::Up) {
+            camera.zoom(zoom_speed);
+        }
+        if window.is_key_down(Key::Down) {
+            camera.zoom(-zoom_speed);
+        }
+       
         framebuffer.clear();
         render(&mut framebuffer, &objects, &mut camera, &light);
 
