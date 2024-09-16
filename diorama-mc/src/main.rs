@@ -28,6 +28,11 @@ mod light;
 use light::Light; 
 
 mod texture;
+use texture::Texture; 
+use std::sync::Arc;
+
+mod cube;
+use cube::Cube;
 
 const BIAS: f32 = 0.001;
 const SKYBOX_COLOR: Color = Color::new(69, 142, 228);
@@ -73,7 +78,7 @@ fn refract(incident: &Vec3, normal: &Vec3, eta_t: f32) -> Vec3 {
     }
 }
 
-fn cast_shadow(intersect: &Intersect, light: &Light, objects: &[Sphere]) -> f32 {
+fn cast_shadow(intersect: &Intersect, light: &Light, objects: &[Cube]) -> f32 {
     let light_dir = (light.position - intersect.point).normalize();
     let light_distance = (light.position - intersect.point).magnitude();
 
@@ -93,7 +98,7 @@ fn cast_shadow(intersect: &Intersect, light: &Light, objects: &[Sphere]) -> f32 
 }
 
 
-pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere], light: &Light, depth: u32) -> Color {
+pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Cube], light: &Light, depth: u32) -> Color {
 
     if depth >= 3 {
         return SKYBOX_COLOR;
@@ -160,7 +165,7 @@ pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Sphere], lig
     (diffuse + specular) * (1.0 - reflectivity - transparency) + (reflect_color * reflectivity) + (refract_color * transparency)
 }
 
-pub fn render(framebuffer: &mut Framebuffer, objects: &[Sphere], camera: &Camera, light: &Light) {
+pub fn render(framebuffer: &mut Framebuffer, objects: &[Cube], camera: &Camera, light: &Light) {
     let width = framebuffer.width as f32;
     let height = framebuffer.height as f32;
     let aspect_ratio = width / height;
@@ -215,7 +220,8 @@ fn main() {
 
     framebuffer.set_background_color(0x333355);
 
-    let rubber = Material::new_with_texture(1.0, [0.9, 0.1, 0.0, 0.0], 0.0);
+    let grass_texture = Arc::new(Texture::new("assets\\grass.png"));
+    let grass = Material::new_with_texture(1.0, [0.9, 0.1, 0.0, 0.0], 0.0, grass_texture);
 
     let ivory = Material::new(Color::new(100, 100, 80), 50.0, [0.6, 0.3, 0.6, 0.0], 0.0);
 
@@ -226,26 +232,44 @@ fn main() {
         0.3,
     );
 
+    //let objects = [
+      //  Sphere {
+        //    center: Vec3::new(-1.0, -1.0, 1.5),
+          //  radius: 0.5, 
+            //material: ivory,
+        //},
+        //Sphere {
+          //  center: Vec3::new(0.0, 0.0, 0.0),
+            //radius: 1.0,
+            //material: rubber,
+        //}, 
+        //Sphere {
+          //  center: Vec3::new(-0.3, 0.3,2.5),
+          //  radius: 0.5,
+          //  material: glass,
+        // }
+    //];
 
     let objects = [
-        Sphere {
-            center: Vec3::new(-1.0, -1.0, 1.5),
-            radius: 0.5, 
+        Cube {  // Base o terreno
+            min: Vec3::new(-5.0, -1.0, -5.0),
+            max: Vec3::new(5.0, 0.0, 5.0),
+            material: grass,
+        },
+        Cube {  // Estructura central
+            min: Vec3::new(-2.0, 0.0, -2.0),
+            max: Vec3::new(2.0, 5.0, 2.0),
             material: ivory,
         },
-        Sphere {
-            center: Vec3::new(0.0, 0.0, 0.0),
-            radius: 1.0,
-            material: rubber,
-        }, 
-        Sphere {
-            center: Vec3::new(-0.3, 0.3,2.5),
-            radius: 0.5,
+        Cube {  // Elemento decorativo o árbol
+            min: Vec3::new(3.0, 0.0, 3.0),
+            max: Vec3::new(4.0, 3.0, 4.0),
             material: glass,
-        }
+        },
+   
     ];
 
-
+    
     let mut camera = Camera::new(
         Vec3::new(0.0, 0.0, 5.0),
         Vec3::new(0.0, 0.0, 0.0),

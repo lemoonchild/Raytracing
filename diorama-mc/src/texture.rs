@@ -13,9 +13,17 @@ pub struct Texture {
 
 impl Texture {
     pub fn new(file_path: &str) -> Texture {
-        let img = ImageReader::open(file_path).unwrap().decode().unwrap();
+        let img = ImageReader::open(file_path)
+            .expect("Failed to open file")
+            .decode()
+            .expect("Failed to decode image");
+
         let width = img.width() as usize;
         let height = img.height() as usize;
+
+        // Verificar que la imagen no tenga dimensiones nulas
+        assert!(width > 0 && height > 0, "Image is empty or not loaded correctly");
+
         let mut texture = Texture {
             image: img,
             width,
@@ -35,15 +43,16 @@ impl Texture {
                 self.color_array[y * self.width + x] = Color::from_hex(color);
             }
         }
-    }
-
+    }    
+    
     pub fn get_color(&self, x: usize, y: usize) -> Color {
-        if x >= self.width || y >= self.height {
-            Color::from_hex(0xFF00FF)
-        } else {
+        if x < self.width && y < self.height {
             self.color_array[y * self.width + x]
+        } else {
+            Color::from_hex(0xFF00FF)  // Magenta para indicar error de coordenadas
         }
     }
+    
 }
 
 impl fmt::Debug for Texture {

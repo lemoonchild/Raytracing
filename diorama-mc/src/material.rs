@@ -1,10 +1,6 @@
-use once_cell::sync::Lazy;
 use std::sync::Arc;
-
 use crate::color::Color;
 use crate::texture::Texture;
-
-static BALL: Lazy<Arc<Texture>> = Lazy::new(|| Arc::new(Texture::new("src\\assets\\ball.png")));
 
 #[derive(Debug, Clone)]
 pub struct Material {
@@ -13,6 +9,7 @@ pub struct Material {
     pub albedo: [f32; 4],
     pub refractive_index: f32,
     pub has_texture: bool,
+    pub texture: Option<Arc<Texture>>,  // Añade esto
 }
 
 impl Material {
@@ -23,28 +20,33 @@ impl Material {
             albedo,
             refractive_index,
             has_texture: false,
+            texture: None,  // Añade esto
         }
     }
 
-    pub fn new_with_texture(specular: f32, albedo: [f32; 4], refractive_index: f32) -> Self {
+    pub fn new_with_texture(specular: f32, albedo: [f32; 4], refractive_index: f32, texture: Arc<Texture>) -> Self {
         Material {
-            diffuse: Color::new(0, 0, 0), 
+            diffuse: Color::new(255, 0, 0), 
             specular,
             albedo,
             refractive_index,
             has_texture: true,
+            texture: Some(texture),  // Añade esto
         }
     }
 
     pub fn get_diffuse_color(&mut self, u: f32, v: f32) -> Color {
         if self.has_texture {
-            let x = (u * (BALL.width as f32 - 1.0)) as usize;
-            let y = ((1.0 - v) * (BALL.height as f32 - 1.0)) as usize;
-            BALL.get_color(x, y)
-        } else {
-            self.diffuse
+            if let Some(tex) = &self.texture {
+                let u = u.clamp(0.0, 1.0);
+                let v = v.clamp(0.0, 1.0);
+                let x = (u * (tex.width as f32)).round() as usize;
+                let y = ((1.0 - v) * (tex.height as f32)).round() as usize;
+                return tex.get_color(x.min(tex.width - 1), y.min(tex.height - 1));
+            }
         }
-    }
+        self.diffuse
+    }    
 
     pub fn black() -> Self {
         Material {
@@ -53,6 +55,7 @@ impl Material {
             albedo: [0.0, 0.0, 0.0, 0.0],
             refractive_index: 0.0,
             has_texture: false,
+            texture: None,
         }
     }
 }
