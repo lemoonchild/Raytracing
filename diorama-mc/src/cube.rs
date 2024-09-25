@@ -1,38 +1,70 @@
-use nalgebra_glm::Vec3;
-use crate::ray_intersect::{Intersect, RayIntersect};
 use crate::material::Material;
+use crate::ray_intersect::{Intersect, RayIntersect};
+use nalgebra_glm::Vec3;
 
 pub struct Cube {
-    pub min: Vec3, // La esquina mínima del cubo
-    pub max: Vec3, // La esquina máxima del cubo
+    pub min: Vec3,          // La esquina mínima del cubo
+    pub max: Vec3,          // La esquina máxima del cubo
     pub material: Material, // Material del cubo (incluyendo albedo)
 }
 
 impl Cube {
     pub fn get_uv(&self, point: &Vec3, normal: &Vec3) -> (f32, f32) {
-        // Toma el tamaño de cada segmento de la textura
-        let segment_height = 1.0 / 6.0;  // Asumiendo 6 filas iguales
-        let segment_width = 1.0;
-    
+        let size = self.max - self.min;
+        let local_point = point - self.min;
+
+        let img_width = 375.0;
+        let img_height = 500.0;
+        let num_columns = 3.0;
+        let num_rows = 4.0;
+
+        let column_width = img_width / num_columns;
+        let row_height = img_height / num_rows;
+
         let mut u = 0.0;
         let mut v = 0.0;
-    
-        if normal.x.abs() > 0.99 {  // Caras laterales (left/right)
-            u = (point.y - self.min.y) / (self.max.y - self.min.y);
-            v = (point.z - self.min.z) / (self.max.z - self.min.z);
-            v = segment_height * (if normal.x > 0.0 { 4.0 } else { 5.0 }) + v * segment_height;
-        } else if normal.y.abs() > 0.99 {  // Caras superior/inferior (top/bottom)
-            u = (point.x - self.min.x) / (self.max.x - self.min.x);
-            v = (point.z - self.min.z) / (self.max.z - self.min.z);
-            v = segment_height * (if normal.y > 0.0 { 0.0 } else { 1.0 }) + v * segment_height;
-        } else if normal.z.abs() > 0.99 {  // Caras frontal/posterior (front/back)
-            u = (point.x - self.min.x) / (self.max.x - self.min.x);
-            v = (point.y - self.min.y) / (self.max.y - self.min.y);
-            v = segment_height * (if normal.z > 0.0 { 2.0 } else { 3.0 }) + v * segment_height;
-        }
-    
-        (u, v)
-    }    
+
+        let (u, v) = if normal.x > 0.0 {
+            // Cara derecha (Face 6)
+            (
+                (local_point.y / size.y) * column_width + 2.0 * column_width, // Columna 3
+                (1.0 - local_point.z / size.z) * row_height + row_height,
+            ) // Fila 2
+        } else if normal.x < 0.0 {
+            // Cara izquierda (Face 4)
+            (
+                (1.0 - local_point.y / size.y) * column_width, // Columna 1
+                (1.0 - local_point.z / size.z) * row_height + row_height,
+            ) // Fila 2
+        } else if normal.y > 0.0 {
+            // Cara superior (Face 11)
+            (
+                (local_point.x / size.x) * column_width + column_width, // Columna 2
+                (local_point.z / size.z) * row_height + 3.0 * row_height,
+            ) // Fila 4
+        } else if normal.y < 0.0 {
+            // Cara inferior (Face 5)
+            (
+                (local_point.x / size.x) * column_width + column_width, // Columna 2
+                (local_point.z / size.z) * row_height + row_height,
+            ) // Fila 2
+        } else if normal.z > 0.0 {
+            // Cara frontal (Face 2)
+            (
+                (local_point.x / size.x) * column_width + column_width, // Columna 2
+                (1.0 - local_point.y / size.y) * row_height,
+            ) // Fila 1
+        } else {
+            // Cara trasera (Face 8)
+            (
+                (local_point.x / size.x) * column_width + column_width, // Columna 2
+                (local_point.y / size.y) * row_height + 2.0 * row_height,
+            ) // Fila 3
+        };
+
+        // Convertir coordenadas de píxeles a coordenadas UV dividiendo por las dimensiones de la imagen
+        (u / img_width, 1.0 - v / img_height)
+    }
 }
 
 impl RayIntersect for Cube {
@@ -41,7 +73,7 @@ impl RayIntersect for Cube {
         let inv_dir = Vec3::new(
             1.0 / ray_direction[0],
             1.0 / ray_direction[1],
-            1.0 / ray_direction[2]
+            1.0 / ray_direction[2],
         );
 
         let tmin = (self.min - ray_origin).component_mul(&inv_dir);
@@ -80,6 +112,3 @@ impl RayIntersect for Cube {
         Intersect::empty()
     }
 }
-
-
-

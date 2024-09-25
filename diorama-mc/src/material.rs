@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use crate::color::Color;
 use crate::texture::Texture;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct Material {
@@ -9,7 +9,7 @@ pub struct Material {
     pub albedo: [f32; 4],
     pub refractive_index: f32,
     pub has_texture: bool,
-    pub texture: Option<Arc<Texture>>,  // Añade esto
+    pub texture: Option<Arc<Texture>>,
 }
 
 impl Material {
@@ -20,22 +20,27 @@ impl Material {
             albedo,
             refractive_index,
             has_texture: false,
-            texture: None,  // Añade esto
+            texture: None,
         }
     }
 
-    pub fn new_with_texture(specular: f32, albedo: [f32; 4], refractive_index: f32, texture: Arc<Texture>) -> Self {
+    pub fn new_with_texture(
+        specular: f32,
+        albedo: [f32; 4],
+        refractive_index: f32,
+        texture: Arc<Texture>,
+    ) -> Self {
         Material {
-            diffuse: Color::new(255, 0, 0), 
+            diffuse: Color::new(255, 0, 0),
             specular,
             albedo,
             refractive_index,
             has_texture: true,
-            texture: Some(texture),  // Añade esto
+            texture: Some(texture),
         }
     }
 
-    pub fn get_diffuse_color(&mut self, u: f32, v: f32) -> Color {
+    pub fn get_diffuse_color(&self, u: f32, v: f32) -> Color {
         if self.has_texture {
             if let Some(tex) = &self.texture {
                 let u = u.clamp(0.0, 1.0);
@@ -46,7 +51,7 @@ impl Material {
             }
         }
         self.diffuse
-    }    
+    }
 
     pub fn black() -> Self {
         Material {
