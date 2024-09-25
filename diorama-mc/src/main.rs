@@ -34,6 +34,9 @@ use texture::Texture;
 mod cube;
 use cube::Cube;
 
+use rayon::prelude::*;
+use std::sync::Mutex;
+
 const BIAS: f32 = 0.001;
 const SKYBOX_COLOR: Color = Color::new(69, 142, 228);
 
@@ -178,28 +181,27 @@ pub fn render(framebuffer: &mut Framebuffer, objects: &[Cube], camera: &Camera, 
     let fov = PI / 3.0;
     let perspective_scale = (fov / 2.0).tan();
 
-    for y in 0..framebuffer.height {
-        for x in 0..framebuffer.width {
-            // Map the pixel coordinate to screen space [-1, 1]
-            let screen_x = (2.0 * x as f32) / width - 1.0;
-            let screen_y = -(2.0 * y as f32) / height + 1.0;
+    let pixels: Vec<_> = (0..framebuffer.height).flat_map(|y| {
+        (0..framebuffer.width).map(move |x| (x, y))
+    }).collect();
 
-            // Adjust for aspect ratio
-            let screen_x = screen_x * aspect_ratio * perspective_scale;
-            let screen_y = screen_y * perspective_scale;
+    // Calcula los colores de los píxeles en paralelo
+    let pixel_colors: Vec<(usize, usize, u32)> = pixels.par_iter().map(|&(x, y)| {
+        let screen_x = (2.0 * x as f32) / width - 1.0;
+        let screen_y = -(2.0 * y as f32) / height + 1.0;
+        let screen_x = screen_x * aspect_ratio * perspective_scale;
+        let screen_y = screen_y * perspective_scale;
+        let ray_direction = Vec3::new(screen_x, screen_y, -1.0).normalize();
+        let rotated_direction = camera.basis_change(&ray_direction);
+        let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, light, 0);
+        (x, y, pixel_color.to_hex())
+    }).collect();
 
-            // Calculate the direction of the ray for this pixel
-            let ray_direction = &Vec3::new(screen_x, screen_y, -1.0).normalize();
-
-            let rotated_direction = camera.basis_change(&ray_direction);
-
-            let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, light, 0);
-
-            // Draw the pixel on screen with the returned color
-            framebuffer.set_current_color(pixel_color.to_hex());
-            framebuffer.point(x, y);
-        }
-    }
+    // Aplica los colores de los píxeles en una operación secuencial
+    for (x, y, color) in pixel_colors {
+        framebuffer.set_current_color(color);
+        framebuffer.point(x, y);
+    } 
 }
 
 fn main() {
@@ -226,24 +228,19 @@ fn main() {
 
     framebuffer.set_background_color(0x333355);
 
+    let mut objects: Vec<Cube> = Vec::new();
     let grass_texture = Arc::new(Texture::new("assets\\grass.png"));
-    let grass = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, grass_texture);
+    let grass_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, grass_texture.clone());
 
-    let ivory: Material = Material::new(Color::new(100, 100, 80), 50.0, [0.6, 0.3, 0.6, 0.0], 0.0);
-
-    let glass = Material::new(
-        Color::new(255, 255, 255),
-        1425.0,
-        [0.0, 10.0, 0.5, 0.5],
-        0.3,
-    );
-
-    let objects = [Cube {
-        // Base o terreno
-        min: Vec3::new(0.0, 1.0, 0.0),
-        max: Vec3::new(1.0, 2.0, 1.0),
-        material: grass,
-    }];
+    for i in 0..8 {
+        for j in 0..8 {
+            objects.push(Cube {
+                min: Vec3::new(i as f32, 0.0, j as f32), // Posición inicial de cada cubo
+                max: Vec3::new(i as f32 + 1.0, 1.0, j as f32 + 1.0), // Posición final, cada cubo tiene una altura de 1
+                material: grass_material.clone(),
+            });
+        }
+    }
 
     let mut camera = Camera::new(
         Vec3::new(0.0, 0.0, 5.0),
