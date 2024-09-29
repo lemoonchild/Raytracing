@@ -124,7 +124,7 @@ pub fn cast_ray(
     ray_origin: &Vec3,
     ray_direction: &Vec3,
     objects: &[Cube],
-    light: &Light,
+    lights: &[Light], // Cambiamos de light a lights
     skybox: &Texture, 
     depth: u32,
 ) -> Color {
@@ -149,24 +149,50 @@ pub fn cast_ray(
         return get_skybox_color(ray_direction, skybox);
     }
 
+    // Luz ambiental
     let ambient_light = AMBIENT_LIGHT_COLOR * AMBIENT_INTENSITY;
+    let mut total_light = ambient_light;
 
-    // Direcciones para cálculos de iluminación
-    let light_dir = (light.position - intersect.point).normalize();
-    let view_dir = (ray_origin - intersect.point).normalize();
-    let reflect_dir = reflect(&-light_dir, &intersect.normal).normalize();
+    // Procesar la contribución de cada fuente de luz
+    for light in lights {
+        let light_dir = (light.position - intersect.point).normalize();
+        let view_dir = (ray_origin - intersect.point).normalize();
+        let reflect_dir = reflect(&-light_dir, &intersect.normal).normalize();
 
-    // Calcular la intensidad de la sombra
-    let shadow_intensity = cast_shadow(&intersect, light, objects);
-    let light_intensity = light.intensity * (1.0 - shadow_intensity);
+        // Calcular la intensidad de la sombra
+        let shadow_intensity = cast_shadow(&intersect, light, objects);
+        let light_intensity = light.intensity * (1.0 - shadow_intensity);
 
-    // Calcular componentes difusos y especulares
-    let diffuse_intensity = intersect.normal.dot(&light_dir).max(0.0).min(1.0);
-    let diffuse_color = intersect.material.get_diffuse_color(intersect.u, intersect.v);
-    let diffuse = diffuse_color * intersect.material.albedo[0] * diffuse_intensity * light_intensity;
+        // Calcular componentes difusos y especulares
+        let diffuse_intensity = intersect.normal.dot(&light_dir).max(0.0).min(1.0);
+        let diffuse_color = intersect.material.get_diffuse_color(intersect.u, intersect.v);
+        let diffuse = diffuse_color * intersect.material.albedo[0] * diffuse_intensity * light_intensity;
 
-    let specular_intensity = view_dir.dot(&reflect_dir).max(0.0).powf(intersect.material.specular);
-    let specular = light.color * intersect.material.albedo[1] * specular_intensity * light_intensity;
+        let specular_intensity = view_dir.dot(&reflect_dir).max(0.0).powf(intersect.material.specular);
+        let specular = light.color * intersect.material.albedo[1] * specular_intensity * light_intensity;
+
+        total_light = total_light + diffuse + specular;
+    }
+
+    // Si el material es emisivo, añadir su contribución
+    let mut emission = intersect.material.emission * 0.5;
+
+    // Si el material es emisivo
+    if emission.r() > 0 || emission.g() > 0 || emission.b() > 0 {
+        // Aquí va el código actualizado
+        let warm_tone = Color::new(255, 180, 100); // Un tono cálido más anaranjado
+
+        // Calcula la distancia desde el punto de intersección al origen del rayo para atenuar la emisión
+        let distance = (ray_origin - intersect.point).magnitude();
+        let attenuation = 1.0 / (1.0 + 0.09 * distance + 0.032 * distance * distance); // Fórmula de atenuación
+
+        // Mezclar la emisión del glowstone con el tono cálido y reducir la intensidad
+        emission = (emission * 0.2 + warm_tone * 0.5) * attenuation; // Reduciendo la intensidad y aumentando el tono cálido
+
+        // Agregar la emisión al total de la luz reflejada
+        total_light = total_light + emission;
+    }
+
 
     // Cálculo del factor de Fresnel
     let cos_theta = -intersect.normal.dot(ray_direction).max(-1.0).min(1.0);
@@ -178,7 +204,7 @@ pub fn cast_ray(
     if intersect.material.albedo[2] > 0.0 {
         let reflect_dir = reflect(&ray_direction, &intersect.normal).normalize();
         let reflect_origin = offset_point(&intersect, &reflect_dir);
-        reflect_color = cast_ray(&reflect_origin, &reflect_dir, objects, light, skybox, depth + 1);
+        reflect_color = cast_ray(&reflect_origin, &reflect_dir, objects, lights, skybox, depth + 1);
     }
 
     // Ajustar transparencia con Fresnel
@@ -186,7 +212,7 @@ pub fn cast_ray(
     if intersect.material.albedo[3] > 0.0 {
         let refract_dir = refract(&ray_direction, &intersect.normal, intersect.material.refractive_index);
         let refract_origin = offset_point(&intersect, &refract_dir);
-        refract_color = cast_ray(&refract_origin, &refract_dir, objects, light, skybox, depth + 1);
+        refract_color = cast_ray(&refract_origin, &refract_dir, objects, lights, skybox, depth + 1);
     }
 
     // Incorporar Fresnel en reflectividad y transparencia
@@ -195,16 +221,16 @@ pub fn cast_ray(
 
     // Ajustar los valores de reflectividad y transparencia para asegurar que no excedan el rango permitido
     let scaling_factor = 1.0 / (final_reflectivity + final_transparency + (1.0 - intersect.material.albedo[2] - intersect.material.albedo[3]));
-    
-    let final_color = ambient_light + 
-        (diffuse + specular) * (1.0 - final_reflectivity - final_transparency) * scaling_factor +
+
+    let final_color = (total_light) * (1.0 - final_reflectivity - final_transparency) * scaling_factor +
         (reflect_color * final_reflectivity) * scaling_factor +
         (refract_color * final_transparency) * scaling_factor;
 
     return clamp_color(final_color);
 }
 
-pub fn render(framebuffer: &mut Framebuffer, objects: &[Cube], camera: &Camera, light: &Light) {
+
+pub fn render(framebuffer: &mut Framebuffer, objects: &[Cube], camera: &Camera, lights: &[Light]) {
     let width = framebuffer.width as f32;
     let height = framebuffer.height as f32;
     let aspect_ratio = width / height;
@@ -224,7 +250,7 @@ pub fn render(framebuffer: &mut Framebuffer, objects: &[Cube], camera: &Camera, 
         let screen_y = screen_y * perspective_scale;
         let ray_direction = Vec3::new(screen_x, screen_y, -1.0).normalize();
         let rotated_direction = camera.basis_change(&ray_direction);
-        let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, light, &skybox_texture, 0);
+        let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, lights, &skybox_texture, 0);
         (x, y, pixel_color.to_hex())
     }).collect();
 
@@ -260,6 +286,9 @@ fn main() {
     framebuffer.set_background_color(0x333355);
 
     let mut objects: Vec<Cube> = Vec::new();
+
+    //Emisiones
+    let glowstone_emission = Color::new(255, 223, 127); // Color de la luz que emite
 
     //Texturas
     let grass_texture = Arc::new(Texture::new("assets\\grass.png"));
@@ -299,12 +328,12 @@ fn main() {
     let magma_material = Material::new_with_texture(0.2, [0.7, 0.5, 0.03, 0.0], 1.5, magma_texture);
     let stone_bricks_material = Material::new_with_texture(0.1, [0.6, 0.05, 0.0, 0.0], 1.5, stone_bricks_texture);
 
-    let glowstone_material = Material::new_with_texture(0.2, [0.9, 0.1, 0.0, 0.0], 1.2, glowstone_texture);
+    let glowstone_material = Material::new_with_texture_and_emission(0.2, [0.9, 0.1, 0.0, 0.0], 1.2, glowstone_emission, glowstone_texture);
     let stone_material = Material::new_with_texture(0.1, [0.6, 0.05, 0.0, 0.0], 1.5, stone_texture);
     let netherrack_material = Material::new_with_texture(0.1, [0.8, 0.1, 0.1, 0.0], 1.0, netherrack_texture);
 
     // Materiales al lado del portal
-    let materials = [stone_material, stone_bricks_material, glowstone_material, chiseled_stone_material];
+    let materials = [stone_material, stone_bricks_material, chiseled_stone_material];
 
     for i in 0..8 {
         for j in 0..8 {    
@@ -338,8 +367,12 @@ fn main() {
                 }
             } else if i == 1 {
                 match j {
-                    1 | 2 => {
+                    1 => {
                         material = magma_material.clone();
+                        place_dirt = true;
+                    },
+                    2 => {
+                        material = glowstone_material.clone();
                         place_dirt = true;
                     },
                     _ => (),
@@ -389,14 +422,14 @@ fn main() {
             }
 
             if i == 5 && j == 1 {
+                // Agregar el librero
                 objects.push(Cube {
                     min: Vec3::new(i as f32, 2.0, j as f32),
                     max: Vec3::new(i as f32 + 1.0, 3.0 , j as f32 + 1.0),
                     material: bookshelf_material.clone(),
                 });
-                
             }
-
+        
             // Crafting table with furnance
 
             if i == 5 && j == 5 {
@@ -437,12 +470,21 @@ fn main() {
             }
 
             if i == 6 && j == 3 {
+                // Agregar el bloque de crying obsidian
                 objects.push(Cube {
                     min: Vec3::new(i as f32, 2.0, j as f32),
                     max: Vec3::new(i as f32 + 1.0, 3.0, j as f32 + 1.0),
                     material: crying_obsidian_material.clone(),
                 });
+
+                // Agregar el glowstone encima del bloque de crying obsidian
+                objects.push(Cube {
+                    min: Vec3::new(i as f32, 3.0, j as f32), // Una capa arriba del crying obsidian
+                    max: Vec3::new(i as f32 + 1.0, 4.0, j as f32 + 1.0),
+                    material: glowstone_material.clone(), // Usar el material de glowstone
+                });
             }
+
 
             if i == 6 && j == 4 {
                 for k in 0..4 {  
@@ -473,8 +515,22 @@ fn main() {
         Vec3::new(0.0, 1.0, 0.0),   // Vector "up" de la cámara
     );
 
-    let light = Light::new(Vec3::new(-5.0, 10.0, -10.0), Color::new(255, 255, 255), 1.0);
+    // Crear una lista de luces que incluirá la luz principal y las luces de los bloques glowstone
+    let mut lights: Vec<Light> = vec![
+        Light::new(Vec3::new(-5.0, 10.0, -10.0), Color::new(255, 255, 255), 1.0), // Luz principal
+    ];
 
+    // Ahora recorremos todos los objetos y añadimos los bloques de glowstone como fuentes de luz
+    for object in &objects {
+        if object.material.emission.r() > 0 || object.material.emission.g() > 0 || object.material.emission.b() > 0 {
+            lights.push(Light::new(
+                object.min + Vec3::new(0.5, 0.5, 0.5), // Centro del bloque glowstone
+                object.material.emission,
+                0.8, // Ajusta la intensidad para las luces glowstone
+            ));
+        }
+    }
+    
     let rotation_speed = PI / 50.0;
     let movement_speed = 0.1;
     let zoom_speed = 0.5;
@@ -526,7 +582,7 @@ fn main() {
         }
 
         framebuffer.clear();
-        render(&mut framebuffer, &objects, &mut camera, &light);
+        render(&mut framebuffer, &objects, &mut camera, &lights);
 
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
