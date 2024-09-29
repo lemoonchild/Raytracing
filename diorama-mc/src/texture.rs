@@ -5,6 +5,7 @@ use std::fmt;
 
 #[derive(Clone)]
 pub struct Texture {
+    pub id: String,
     image: DynamicImage,
     pub width: usize,
     pub height: usize,
@@ -28,6 +29,7 @@ impl Texture {
         );
 
         let mut texture = Texture {
+            id: file_path.to_string(),
             image: img,
             width,
             height,

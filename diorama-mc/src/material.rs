@@ -8,17 +8,19 @@ pub struct Material {
     pub specular: f32,
     pub albedo: [f32; 4],
     pub refractive_index: f32,
+    pub emission: Color,
     pub has_texture: bool,
     pub texture: Option<Arc<Texture>>,
 }
 
 impl Material {
-    pub fn new(diffuse: Color, specular: f32, albedo: [f32; 4], refractive_index: f32) -> Self {
+    pub fn new(diffuse: Color, specular: f32, albedo: [f32; 4], refractive_index: f32, emission: Color) -> Self {
         Material {
             diffuse,
             specular,
             albedo,
             refractive_index,
+            emission,
             has_texture: false,
             texture: None,
         }
@@ -31,10 +33,30 @@ impl Material {
         texture: Arc<Texture>,
     ) -> Self {
         Material {
-            diffuse: Color::new(255, 0, 0),
+            diffuse: Color::new(255, 255, 255), // Color difuso por defecto
             specular,
             albedo,
             refractive_index,
+            emission: Color::new(0, 0, 0), // Sin emisión por defecto
+            has_texture: true,
+            texture: Some(texture),
+        }
+    }
+
+    // Constructor con textura y emisión de luz
+    pub fn new_with_texture_and_emission(
+        specular: f32,
+        albedo: [f32; 4],
+        refractive_index: f32,
+        emission: Color,
+        texture: Arc<Texture>,
+    ) -> Self {
+        Material {
+            diffuse: Color::new(255, 255, 255), // Color difuso por defecto
+            specular,
+            albedo,
+            refractive_index,
+            emission,
             has_texture: true,
             texture: Some(texture),
         }
@@ -60,6 +82,7 @@ impl Material {
             albedo: [0.0, 0.0, 0.0, 0.0],
             refractive_index: 0.0,
             has_texture: false,
+            emission: Color::new(0, 0, 0),
             texture: None,
         }
     }

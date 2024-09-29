@@ -257,29 +257,30 @@ fn main() {
     let netherrack_texture: Arc<Texture> = Arc::new(Texture::new("assets\\netherrack.png"));
 
 
-    let grass_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, grass_texture.clone());
-    let dirt_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, dirt_texture);
-    let iron_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, iron_texture);
-    let gold_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, gold_texture);
-    let diamond_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, diamond_texture);
-    let coal_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, coal_texture);
-    let bookshelf_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, bookshelf_texture);
-    let furnance_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, furnance_texture);
-    let crafting_table_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, crafting_table_texture);
-    let crying_obsidian_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, crying_obsidian_texture);
-    let obsidian_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, obsidian_texture);
-    let chiseled_stone_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, chiseled_stone_texture);
-    let gold_block_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, gold_block_texture);
-    let magma_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, magma_texture);
-    let stone_bricks_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, stone_bricks_texture);
-    let glowstone_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, glowstone_texture);
-    let stone_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, stone_texture) ;
-    let netherrack_material = Material::new_with_texture(1.0, [1.0, 0.05, 0.0, 0.0], 0.0, netherrack_texture) ;
+    let grass_material = Material::new_with_texture(0.1,  [0.85, 0.1, 0.05, 0.0], 1.3, grass_texture.clone());
+    let dirt_material = Material::new_with_texture(0.2, [0.9, 0.05, 0.05, 0.0], 1.0, dirt_texture);
+    let iron_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, iron_texture);
+    let gold_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, gold_texture);
+    let diamond_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, diamond_texture);
+
+    let coal_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, coal_texture);
+    let bookshelf_material: Material = Material::new_with_texture(0.2, [0.8, 0.1, 0.0, 0.0], 1.3, bookshelf_texture);
+    let furnance_material = Material::new_with_texture(0.4, [0.6, 0.3, 0.05, 0.0], 1.5, furnance_texture);
+    let crafting_table_material = Material::new_with_texture(0.1,  [0.85, 0.05, 0.0, 0.0], 1.3, crafting_table_texture);
+    let crying_obsidian_material = Material::new_with_texture(0.5, [0.4, 0.4, 0.04, 0.01], 1.5, crying_obsidian_texture);
+
+    let obsidian_material = Material::new_with_texture(0.4, [0.7, 0.3, 0.03, 0.01], 1.5, obsidian_texture);
+    let chiseled_stone_material = Material::new_with_texture(0.3, [0.9, 0.1, 0.0, 0.0], 0.0, chiseled_stone_texture);
+    let gold_block_material = Material::new_with_texture(0.8, [0.85, 0.5, 0.05, 0.0], 0.0, gold_block_texture);
+    let magma_material = Material::new_with_texture(0.2, [0.7, 0.3, 0.1, 0.05], 1.5, magma_texture);
+    let stone_bricks_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, stone_bricks_texture);
+
+    let glowstone_material = Material::new_with_texture(0.2, [0.9, 0.1, 0.0, 0.0], 1.2, glowstone_texture);
+    let stone_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, stone_texture) ;
+    let netherrack_material = Material::new_with_texture(0.1, [0.8, 0.1, 0.1, 0.0], 1.0, netherrack_texture) ;
 
     // Materiales al lado del portal
     let materials = [stone_material, stone_bricks_material, glowstone_material, chiseled_stone_material];
-
-
 
     for i in 0..8 {
         for j in 0..8 {    
