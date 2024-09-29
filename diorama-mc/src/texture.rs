@@ -57,6 +57,19 @@ impl Texture {
             Color::from_hex(0xFF00FF) // Magenta para indicar error de coordenadas
         }
     }
+
+    pub fn get_color_at_uv(&self, u: f32, v: f32) -> Color {
+        // Asegúrate de que u y v estén en el rango [0, 1]
+        let u = u.clamp(0.0, 1.0);
+        let v = v.clamp(0.0, 1.0);
+
+        // Convertir las coordenadas UV a coordenadas de la textura
+        let x = (u * (self.width as f32 - 1.0)) as usize;
+        let y = ((1.0 - v) * (self.height as f32 - 1.0)) as usize; // invertimos v ya que las coordenadas de la textura generalmente comienzan desde la parte superior
+
+        // Retorna el color de la textura
+        self.get_color(x, y)
+    }
 }
 
 impl fmt::Debug for Texture {

@@ -100,6 +100,18 @@ fn cast_shadow(intersect: &Intersect, light: &Light, objects: &[Cube]) -> f32 {
     shadow_intensity
 }
 
+fn get_skybox_color(ray_direction: &Vec3, skybox: &Texture) -> Color {
+    // Normaliza la dirección del rayo
+    let dir = ray_direction.normalize();
+
+    // Mapear la dirección a coordenadas UV
+    let u = 0.5 + (dir.x.atan2(dir.z) / (2.0 * PI));
+    let v = 0.5 - (dir.y.asin() / PI);
+
+    // Obtener el color de la textura
+    skybox.get_color_at_uv(u, v)
+}
+
 fn clamp_color(color: Color) -> Color {
     Color::new(
         color.r().min(255).max(0),
@@ -113,6 +125,7 @@ pub fn cast_ray(
     ray_direction: &Vec3,
     objects: &[Cube],
     light: &Light,
+    skybox: &Texture, 
     depth: u32,
 ) -> Color {
     if depth >= 3 {
@@ -133,7 +146,7 @@ pub fn cast_ray(
     }
 
     if !intersect.is_intersecting {
-        return SKYBOX_COLOR;
+        return get_skybox_color(ray_direction, skybox);
     }
 
     let ambient_light = AMBIENT_LIGHT_COLOR * AMBIENT_INTENSITY;
@@ -165,7 +178,7 @@ pub fn cast_ray(
     if intersect.material.albedo[2] > 0.0 {
         let reflect_dir = reflect(&ray_direction, &intersect.normal).normalize();
         let reflect_origin = offset_point(&intersect, &reflect_dir);
-        reflect_color = cast_ray(&reflect_origin, &reflect_dir, objects, light, depth + 1);
+        reflect_color = cast_ray(&reflect_origin, &reflect_dir, objects, light, skybox, depth + 1);
     }
 
     // Ajustar transparencia con Fresnel
@@ -173,7 +186,7 @@ pub fn cast_ray(
     if intersect.material.albedo[3] > 0.0 {
         let refract_dir = refract(&ray_direction, &intersect.normal, intersect.material.refractive_index);
         let refract_origin = offset_point(&intersect, &refract_dir);
-        refract_color = cast_ray(&refract_origin, &refract_dir, objects, light, depth + 1);
+        refract_color = cast_ray(&refract_origin, &refract_dir, objects, light, skybox, depth + 1);
     }
 
     // Incorporar Fresnel en reflectividad y transparencia
@@ -197,6 +210,7 @@ pub fn render(framebuffer: &mut Framebuffer, objects: &[Cube], camera: &Camera, 
     let aspect_ratio = width / height;
     let fov = PI / 3.0;
     let perspective_scale = (fov / 2.0).tan();
+    let skybox_texture = Arc::new(Texture::new("assets\\sky.png"));
 
     let pixels: Vec<_> = (0..framebuffer.height).flat_map(|y| {
         (0..framebuffer.width).map(move |x| (x, y))
@@ -210,7 +224,7 @@ pub fn render(framebuffer: &mut Framebuffer, objects: &[Cube], camera: &Camera, 
         let screen_y = screen_y * perspective_scale;
         let ray_direction = Vec3::new(screen_x, screen_y, -1.0).normalize();
         let rotated_direction = camera.basis_change(&ray_direction);
-        let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, light, 0);
+        let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, light, &skybox_texture, 0);
         (x, y, pixel_color.to_hex())
     }).collect();
 
