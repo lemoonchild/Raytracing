@@ -23,7 +23,7 @@ impl Color {
 
     // default color
     pub const fn black() -> Self {
-        Color { r: 0, g: 0, b:0}
+        Color { r: 0, g: 0, b: 0 }
     }
 
     // Function to return the color as a hex value
@@ -31,7 +31,18 @@ impl Color {
         ((self.r as u32) << 16) | ((self.g as u32) << 8) | (self.b as u32)
     }
 
-    
+    // Getters for each color component
+    pub fn r(&self) -> u8 {
+        self.r
+    }
+
+    pub fn g(&self) -> u8 {
+        self.g
+    }
+
+    pub fn b(&self) -> u8 {
+        self.b
+    }
 }
 
 // Implement addition for Color
@@ -70,3 +81,4 @@ impl fmt::Display for Color {
         write!(f, "Color(r: {}, g: {}, b: {})", self.r, self.g, self.b)
     }
 }
+

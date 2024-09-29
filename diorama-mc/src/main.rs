@@ -100,6 +100,14 @@ fn cast_shadow(intersect: &Intersect, light: &Light, objects: &[Cube]) -> f32 {
     shadow_intensity
 }
 
+fn clamp_color(color: Color) -> Color {
+    Color::new(
+        color.r().min(255).max(0),
+        color.g().min(255).max(0),
+        color.b().min(255).max(0),
+    )
+}
+
 pub fn cast_ray(
     ray_origin: &Vec3,
     ray_direction: &Vec3,
@@ -114,6 +122,7 @@ pub fn cast_ray(
     let mut intersect = Intersect::empty();
     let mut zbuffer = INFINITY;
 
+    // Encontrar la intersección más cercana
     for object in objects {
         let i = object.ray_intersect(ray_origin, ray_direction);
 
@@ -129,7 +138,7 @@ pub fn cast_ray(
 
     let ambient_light = AMBIENT_LIGHT_COLOR * AMBIENT_INTENSITY;
 
-    // Direcciones de luz y visualización para cálculos de iluminación
+    // Direcciones para cálculos de iluminación
     let light_dir = (light.position - intersect.point).normalize();
     let view_dir = (ray_origin - intersect.point).normalize();
     let reflect_dir = reflect(&-light_dir, &intersect.normal).normalize();
@@ -140,44 +149,46 @@ pub fn cast_ray(
 
     // Calcular componentes difusos y especulares
     let diffuse_intensity = intersect.normal.dot(&light_dir).max(0.0).min(1.0);
-    let diffuse_color = intersect
-        .material
-        .get_diffuse_color(intersect.u, intersect.v);
-    let diffuse =
-        diffuse_color * intersect.material.albedo[0] * diffuse_intensity * light_intensity;
+    let diffuse_color = intersect.material.get_diffuse_color(intersect.u, intersect.v);
+    let diffuse = diffuse_color * intersect.material.albedo[0] * diffuse_intensity * light_intensity;
 
-    let specular_intensity = view_dir
-        .dot(&reflect_dir)
-        .max(0.0)
-        .powf(intersect.material.specular);
-    let specular =
-        light.color * intersect.material.albedo[1] * specular_intensity * light_intensity;
+    let specular_intensity = view_dir.dot(&reflect_dir).max(0.0).powf(intersect.material.specular);
+    let specular = light.color * intersect.material.albedo[1] * specular_intensity * light_intensity;
 
+    // Cálculo del factor de Fresnel
+    let cos_theta = -intersect.normal.dot(ray_direction).max(-1.0).min(1.0);
+    let r0 = ((1.0 - intersect.material.refractive_index) / (1.0 + intersect.material.refractive_index)).powi(2);
+    let fresnel_reflectance = (r0 + (1.0 - r0) * (1.0 - cos_theta).powi(5)).clamp(0.0, 1.0);
+
+    // Ajustar reflectividad con Fresnel
     let mut reflect_color = Color::black();
-    let reflectivity = intersect.material.albedo[2];
-
-    if reflectivity > 0.0 {
+    if intersect.material.albedo[2] > 0.0 {
         let reflect_dir = reflect(&ray_direction, &intersect.normal).normalize();
-        let reflect_origin = offset_point(&intersect, &ray_direction);
-        reflect_color = cast_ray(&reflect_origin, &reflect_dir, objects, light, depth + 1)
+        let reflect_origin = offset_point(&intersect, &reflect_dir);
+        reflect_color = cast_ray(&reflect_origin, &reflect_dir, objects, light, depth + 1);
     }
 
+    // Ajustar transparencia con Fresnel
     let mut refract_color = Color::black();
-    let transparency = intersect.material.albedo[3];
-
-    if transparency > 0.0 {
-        let refract_dir = refract(
-            &ray_direction,
-            &intersect.normal,
-            intersect.material.refractive_index,
-        );
+    if intersect.material.albedo[3] > 0.0 {
+        let refract_dir = refract(&ray_direction, &intersect.normal, intersect.material.refractive_index);
         let refract_origin = offset_point(&intersect, &refract_dir);
         refract_color = cast_ray(&refract_origin, &refract_dir, objects, light, depth + 1);
     }
 
-    ambient_light + (diffuse + specular) * (1.0 - reflectivity - transparency)
-    + (reflect_color * reflectivity)
-    + (refract_color * transparency)
+    // Incorporar Fresnel en reflectividad y transparencia
+    let final_reflectivity = fresnel_reflectance * intersect.material.albedo[2];
+    let final_transparency = (1.0 - fresnel_reflectance) * intersect.material.albedo[3];
+
+    // Ajustar los valores de reflectividad y transparencia para asegurar que no excedan el rango permitido
+    let scaling_factor = 1.0 / (final_reflectivity + final_transparency + (1.0 - intersect.material.albedo[2] - intersect.material.albedo[3]));
+    
+    let final_color = ambient_light + 
+        (diffuse + specular) * (1.0 - final_reflectivity - final_transparency) * scaling_factor +
+        (reflect_color * final_reflectivity) * scaling_factor +
+        (refract_color * final_transparency) * scaling_factor;
+
+    return clamp_color(final_color);
 }
 
 pub fn render(framebuffer: &mut Framebuffer, objects: &[Cube], camera: &Camera, light: &Light) {
@@ -256,28 +267,27 @@ fn main() {
     let stone_texture: Arc<Texture> = Arc::new(Texture::new("assets\\stone.png"));
     let netherrack_texture: Arc<Texture> = Arc::new(Texture::new("assets\\netherrack.png"));
 
-
-    let grass_material = Material::new_with_texture(0.1,  [0.85, 0.1, 0.05, 0.0], 1.3, grass_texture.clone());
+    let grass_material = Material::new_with_texture(0.1, [0.85, 0.1, 0.05, 0.0], 1.3, grass_texture.clone());
     let dirt_material = Material::new_with_texture(0.2, [0.9, 0.05, 0.05, 0.0], 1.0, dirt_texture);
-    let iron_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, iron_texture);
-    let gold_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, gold_texture);
-    let diamond_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, diamond_texture);
+    let iron_material = Material::new_with_texture(0.3, [0.6, 0.1, 0.0, 0.0], 1.5, iron_texture);  
+    let gold_material = Material::new_with_texture(0.5, [0.6, 0.1, 0.0, 0.0], 1.3, gold_texture);  
+    let diamond_material = Material::new_with_texture(0.2, [0.6, 0.05, 0.0, 0.0], 1.3, diamond_texture);  
 
-    let coal_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, coal_texture);
-    let bookshelf_material: Material = Material::new_with_texture(0.2, [0.8, 0.1, 0.0, 0.0], 1.3, bookshelf_texture);
+    let coal_material = Material::new_with_texture(0.1, [0.6, 0.05, 0.0, 0.0], 1.5, coal_texture);
+    let bookshelf_material = Material::new_with_texture(0.2, [0.8, 0.1, 0.0, 0.0], 1.3, bookshelf_texture);
     let furnance_material = Material::new_with_texture(0.4, [0.6, 0.3, 0.05, 0.0], 1.5, furnance_texture);
-    let crafting_table_material = Material::new_with_texture(0.1,  [0.85, 0.05, 0.0, 0.0], 1.3, crafting_table_texture);
-    let crying_obsidian_material = Material::new_with_texture(0.5, [0.4, 0.4, 0.04, 0.01], 1.5, crying_obsidian_texture);
+    let crafting_table_material = Material::new_with_texture(0.1, [0.85, 0.05, 0.0, 0.0], 1.3, crafting_table_texture);
+    let crying_obsidian_material = Material::new_with_texture(0.1, [0.7, 0.5, 0.03, 0.0], 1.5, crying_obsidian_texture);
 
-    let obsidian_material = Material::new_with_texture(0.4, [0.7, 0.3, 0.03, 0.01], 1.5, obsidian_texture);
-    let chiseled_stone_material = Material::new_with_texture(0.3, [0.9, 0.1, 0.0, 0.0], 0.0, chiseled_stone_texture);
-    let gold_block_material = Material::new_with_texture(0.8, [0.85, 0.5, 0.05, 0.0], 0.0, gold_block_texture);
-    let magma_material = Material::new_with_texture(0.2, [0.7, 0.3, 0.1, 0.05], 1.5, magma_texture);
-    let stone_bricks_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, stone_bricks_texture);
+    let obsidian_material = Material::new_with_texture(0.1, [0.7, 0.3, 0.04, 0.0], 1.5, obsidian_texture);
+    let chiseled_stone_material = Material::new_with_texture(0.1, [0.6, 0.05, 0.0, 0.0], 1.5, chiseled_stone_texture);
+    let gold_block_material = Material::new_with_texture(0.1, [0.85, 0.5, 0.05, 0.0], 0.47, gold_block_texture);
+    let magma_material = Material::new_with_texture(0.2, [0.7, 0.5, 0.03, 0.0], 1.5, magma_texture);
+    let stone_bricks_material = Material::new_with_texture(0.1, [0.6, 0.05, 0.0, 0.0], 1.5, stone_bricks_texture);
 
     let glowstone_material = Material::new_with_texture(0.2, [0.9, 0.1, 0.0, 0.0], 1.2, glowstone_texture);
-    let stone_material = Material::new_with_texture(0.1,  [0.6, 0.05, 0.0, 0.0], 1.5, stone_texture) ;
-    let netherrack_material = Material::new_with_texture(0.1, [0.8, 0.1, 0.1, 0.0], 1.0, netherrack_texture) ;
+    let stone_material = Material::new_with_texture(0.1, [0.6, 0.05, 0.0, 0.0], 1.5, stone_texture);
+    let netherrack_material = Material::new_with_texture(0.1, [0.8, 0.1, 0.1, 0.0], 1.0, netherrack_texture);
 
     // Materiales al lado del portal
     let materials = [stone_material, stone_bricks_material, glowstone_material, chiseled_stone_material];
